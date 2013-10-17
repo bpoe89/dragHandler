@@ -1,48 +1,76 @@
-;(function ($, w, d) {
-	var namespace = 'draggr';
+/*
+ * underscore.draggr() - v0.1
+ *
+ * @author  Brandon Poe <brandonpoe@me.com>
+ * @copyright 2013, Brandon Poe
+ * @license http://www.opensource.org/licenses/mit-license.html MIT License
+ */
+
+;(function (_, win, doc) {
+
+	var mouseDownEvents = ['mousedown'];
+	var mouseMoveEvents = ['mousemove'];
+	var mouseUpEvents = ['mouseup'];
+	var mouseLeaveEvents = ['mouseout', 'mouseleave'];
+	var mouseEvents = mouseDownEvents.concat(mouseMoveEvents, mouseUpEvents, mouseLeaveEvents);
+
+	var touchDownEvents = ['touchstart'];
+	var touchMoveEvents = ['touchmove'];
+	var touchUpEvents = ['touchend'];
+	var touchLeaveEvents = ['touchout', 'touchleave'];
+	var touchEvents = touchDownEvents.concat(touchMoveEvents, touchUpEvents, touchLeaveEvents);
+
+	var pointerDownEvents = ['pointerdown'];
+	var pointerMoveEvents = ['pointermove'];
+	var pointerUpEvents = ['pointerup'];
+	var pointerLeaveEvents = ['pointerout', 'pointerleave'];
 
 	function Draggr(el, options)
 	{
-		var o = $.extend({}, Draggr.defaults, options, $(el).data('draggr'));
+		var o = _.extend({}, Draggr.defaults, options);
 		var self = this;
-		var $el = $(el);
-
-		var mouseEvents = ['mouseup', 'mouseout', 'mouseleave'],
-			touchEvents = ['touchend', 'touchout', 'touchleave'];
+		console.log(el);
+		el = doc.querySelectorAll(el);
+		console.log(self);
+		console.log(el);
 
 		var pointerInfo = {},
-			pointerDownEvent = '',
-			pointerMoveEvent = '',
-			pointerUpEvent = '';
+			downEvent = [],
+			moveEvent = [],
+			upEvent = [];
 
+		if (o.upOnLeave)
+		{
+			mouseUpEvents = mouseUpEvents.concat(mouseLeaveEvents);
+			touchUpEvents = touchUpEvents.concat(touchLeaveEvents);
+			pointerUpEvents = pointerUpEvents.concat(pointerLeaveEvents);
+		}
 		if (o.hasMouse)
 		{
-			pointerDownEvent = 'mousedown.' + namespace;
-			pointerMoveEvent = 'mousemove.' + namespace;
-			pointerUpEvent = 'mouseup.' + namespace + ' mouseout.' + namespace + ' mouseleave.' + namespace;
+			downEvent = mouseDownEvents;
+			moveEvent = mouseMoveEvents;
+			upEvent = mouseUpEvents;
 		}
 		if (o.hasTouch)
 		{
-			pointerDownEvent += ' touchdown.' + namespace;
-			pointerMoveEvent += ' touchmove.' + namespace;
-			pointerUpEvent += ' touchend.' + namespace + ' touchout.' + namespace + ' touchleave.' + namespace;
+			downEvent = downEvent.concat(touchDownEvents);
+			moveEvent = moveEvent.concat(touchMoveEvents);
+			upEvent = upEvent.concat(touchUpEvents);
 		}
 		if (o.hasPointer)
 		{
-			pointerDownEvent += ' pointerdown.' + namespace;
-			pointerMoveEvent += ' pointermove.' + namespace;
-			pointerUpEvent += ' pointerup.' + namespace + ' pointerout.' + namespace + ' pointerleave.' + namespace;
+			downEvent = downEvent.concat(pointerDownEvents);
+			moveEvent = moveEvent.concat(pointerMoveEvents);
+			upEvent = upEvent.concat(pointerUpEvents);
 		}
 
-		$.trim(pointerDownEvent);
-		$.trim(pointerMoveEvent);
-		$.trim(pointerUpEvent);
+		downEvent = downEvent.join(' ');
+		moveEvent = moveEvent.join(' ');
+		upEvent = upEvent.join(' ');
 
-		function pointerDown(e)
+		function pointerDown(evt)
 		{
-			e.preventDefault();
-			var evt = e.originalEvent;
-
+			evt.preventDefault();
 			if (evt.type === 'mousemove')
 			{
 				evt.pointerId = 1;
@@ -56,24 +84,23 @@
 			}
 
 			pointerInfo[evt.pointerId] = {
-				startX: e.clientX,
-				startY: e.clientY,
+				startX: evt.clientX,
+				startY: evt.clientY,
 				dragging: true
 			};
 
-			o.downCallback(e);
+			o.downCallback(evt);
 
 			return false;
 		}
 
-		function pointerMove(e)
+		function pointerMove(evt)
 		{
-			var evt = e.originalEvent;
-			if (e.type === 'mousemove')
+			if (evt.type === 'mousemove')
 			{
 				evt.pointerId = 1;
 			}
-			else if (e.type === 'touchmove')
+			else if (evt.type === 'touchmove')
 			{
 				var touch = evt.changedTouches[0];
 				evt.pointerId = ( touch.identify || touch.identifier ) + 2;
@@ -83,10 +110,10 @@
 
 			if (pointerInfo[evt.pointerId].dragging)
 			{
-				e.preventDefault();
+				evt.preventDefault();
 
-				pointerInfo[evt.pointerId].deltaX = pointerInfo[evt.pointerId].startX - e.clientX;
-				pointerInfo[evt.pointerId].deltaY = pointerInfo[evt.pointerId].startY - e.clientY;
+				pointerInfo[evt.pointerId].deltaX = pointerInfo[evt.pointerId].startX - evt.clientX;
+				pointerInfo[evt.pointerId].deltaY = pointerInfo[evt.pointerId].startY - evt.clientY;
 
 				requestAnimationFrame(o.moveCallback);
 
@@ -94,14 +121,13 @@
 			}
 		}
 
-		function pointerUp(e)
+		function pointerUp(evt)
 		{
-			var evt = e.originalEvent;
-			if ($.inArray(e.type, mouseEvents) !== -1)
+			if (_.indexOf(mouseEvents, evt.type) !== -1)
 			{
 				evt.pointerId = 1;
 			}
-			else if ($.inArray(e.type, touchEvents) !== -1)
+			else if (_.indexOf(touchEvents, evt.type) !== -1)
 			{
 				var touch = evt.changedTouches[0];
 				evt.pointerId = (touch.identify || touch.identifier)  + 2;
@@ -109,19 +135,25 @@
 
 			pointerInfo[evt.pointerId].dragging = false;
 
-			o.upCallback(e);
+			o.upCallback(evt);
 		}
 
 		self.init = function()
 		{
-			$el.on(pointerDownEvent, pointerDown);
-			$el.on(pointerMoveEvent, pointerMove);
-			$el.on(pointerUpEvent, pointerUp);
+			_.forEach(downEvent, function(event) {
+				el.addEventListener(event, pointerDown, false);
+			});
+			_.forEach(moveEvent, function(event) {
+				el.addEventListener(event, pointerMove, false);
+			});
+			_.forEach(upEvent, function(event) {
+				el.addEventListener(event, pointerUp, false);
+			});
 		};
 
 		self.updateSettings = function(settings)
 		{
-			$.extend(o, settings);
+			_.extend(o, settings);
 		};
 
 		self.reset = function()
@@ -132,10 +164,13 @@
 
 	Draggr.defaults = {
 
-		//Declare which event types to handle
+		// Declare which event types to handle
 		hasMouse: true,
 		hasTouch: true,
 		hasPointer: true,
+
+		// If drag event exits container, pointerUp is triggered
+		upOnLeave: true,
 
 		// Event Callbacks
 		downCallback: function(e) { },
@@ -143,21 +178,4 @@
 		upCallback: function(e) { }
 	};
 
-	$.fn.draggr = function(settings)
-	{
-		return this.each( function() {
-			if (!this.draggr)
-			{
-				this.draggr = new Draggr(this, settings).init();
-			}
-			else if (settings && typeof settings === 'object')
-			{
-				this.draggr.updateSettings(settings);
-			}
-			else
-			{
-				this.draggr.reset();
-			}
-		});
-	};
-}(jQuery, window, document));
+}(_, window, document));
