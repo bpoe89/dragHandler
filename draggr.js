@@ -1,12 +1,13 @@
 /*
- * underscore.draggr() - v0.1
+ * Draggr() - v0.2
  *
  * @author  Brandon Poe <brandonpoe@me.com>
  * @copyright 2013, Brandon Poe
  * @license http://www.opensource.org/licenses/mit-license.html MIT License
  */
 
-;(function (_, win, doc) {
+;(function (win, doc) {
+	'use strict';
 
 	var mouseDownEvents = ['mousedown'];
 	var mouseMoveEvents = ['mousemove'];
@@ -27,14 +28,18 @@
 
 	function Draggr(el, options)
 	{
-		var o = _.extend({}, Draggr.defaults, options);
+		var o = extend({}, Draggr.defaults, options);
 		var self = this;
-		console.log(el);
-		el = doc.querySelectorAll(el);
-		console.log(self);
-		console.log(el);
+		var initialized = false;
 
-		var pointerInfo = {},
+		if (typeof el === 'string')
+			el = doc.querySelectorAll(el);
+
+		var pointerInfo = {
+				1: {
+					dragging: false
+				}
+			},
 			downEvent = [],
 			moveEvent = [],
 			upEvent = [];
@@ -63,10 +68,6 @@
 			moveEvent = moveEvent.concat(pointerMoveEvents);
 			upEvent = upEvent.concat(pointerUpEvents);
 		}
-
-		downEvent = downEvent.join(' ');
-		moveEvent = moveEvent.join(' ');
-		upEvent = upEvent.join(' ');
 
 		function pointerDown(evt)
 		{
@@ -123,11 +124,11 @@
 
 		function pointerUp(evt)
 		{
-			if (_.indexOf(mouseEvents, evt.type) !== -1)
+			if (mouseEvents.indexOf(evt.type) !== -1)
 			{
 				evt.pointerId = 1;
 			}
-			else if (_.indexOf(touchEvents, evt.type) !== -1)
+			else if (touchEvents.indexOf(evt.type) !== -1)
 			{
 				var touch = evt.changedTouches[0];
 				evt.pointerId = (touch.identify || touch.identifier)  + 2;
@@ -140,20 +141,40 @@
 
 		self.init = function()
 		{
-			_.forEach(downEvent, function(event) {
+			if (initialized)
+				return this;
+
+			each(downEvent, function(event)
+			{
 				el.addEventListener(event, pointerDown, false);
 			});
-			_.forEach(moveEvent, function(event) {
+			each(moveEvent, function(event)
+			{
 				el.addEventListener(event, pointerMove, false);
 			});
-			_.forEach(upEvent, function(event) {
+			each(upEvent, function(event)
+			{
 				el.addEventListener(event, pointerUp, false);
 			});
+
+			initialized = true;
+
+			return this;
+		};
+
+		self.destroy = function()
+		{
+			downEvent.concat(moveEvent, upEvent).forEach( function(event)
+			{
+				el.removeEventListener(event);
+			});
+
+			initialized = false;
 		};
 
 		self.updateSettings = function(settings)
 		{
-			_.extend(o, settings);
+			extend(o, settings);
 		};
 
 		self.reset = function()
@@ -161,6 +182,28 @@
 
 		};
 	}
+
+	function each(obj, callback)
+	{
+		for (var i in obj)
+		{
+			if(obj.hasOwnProperty(i))
+			{
+				callback(obj[i]);
+			}
+		}
+	}
+
+	function extend()
+	{
+		for(var i=1; i<arguments.length; i++)
+			for(var key in arguments[i])
+				if(arguments[i].hasOwnProperty(key))
+					arguments[0][key] = arguments[i][key];
+		return arguments[0];
+	}
+
+	win.Draggr = Draggr;
 
 	Draggr.defaults = {
 
@@ -178,4 +221,4 @@
 		upCallback: function(e) { }
 	};
 
-}(_, window, document));
+}(window, document));
