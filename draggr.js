@@ -1,5 +1,5 @@
 /*
- * Draggr() - v0.2
+ * Draggr() - v0.2.1
  *
  * @author  Brandon Poe <brandonpoe@me.com>
  * @copyright 2013, Brandon Poe
@@ -9,33 +9,37 @@
 ;(function (win, doc) {
 	'use strict';
 
-	var mouseDownEvents = ['mousedown'];
-	var mouseMoveEvents = ['mousemove'];
-	var mouseUpEvents = ['mouseup'];
-	var mouseLeaveEvents = ['mouseout', 'mouseleave'];
-	var mouseEvents = mouseDownEvents.concat(mouseMoveEvents, mouseUpEvents, mouseLeaveEvents);
+	var mouseDownEvent = 'mousedown';
+	var mouseMoveEvent = 'mousemove';
+	var mouseUpEvent = ['mouseup'];
+	var mouseLeaveEvent = 'mouseleave';
+	var mouseEvents = [mouseDownEvent, mouseMoveEvent, mouseLeaveEvent].concat(mouseUpEvent);
 
-	var touchDownEvents = ['touchstart'];
-	var touchMoveEvents = ['touchmove'];
-	var touchUpEvents = ['touchend'];
-	var touchLeaveEvents = ['touchout', 'touchleave'];
-	var touchEvents = touchDownEvents.concat(touchMoveEvents, touchUpEvents, touchLeaveEvents);
+	var touchDownEvent = 'touchstart';
+	var touchMoveEvent = 'touchmove';
+	var touchUpEvent = ['touchend', 'touchcancel'];
+	var touchLeaveEvent = 'touchleave';
+	var touchEvents = [touchDownEvent, touchMoveEvent, touchLeaveEvent].concat(touchUpEvent);
 
-	var pointerDownEvents = ['pointerdown'];
-	var pointerMoveEvents = ['pointermove'];
-	var pointerUpEvents = ['pointerup'];
-	var pointerLeaveEvents = ['pointerout', 'pointerleave'];
+	var pointerDownEvent = 'pointerdown';
+	var pointerMoveEvent = 'pointermove';
+	var pointerUpEvent = ['pointerup'];
+	var pointerLeaveEvent = 'pointerleave';
+	var pointerEvents = [pointerDownEvent, pointerMoveEvent, pointerLeaveEvent].concat(pointerUpEvent);
 
 	function Draggr(el, options)
 	{
+		var raf;
+
 		var o = extend({}, Draggr.defaults, options);
 		var self = this;
 		var initialized = false;
 
 		if (typeof el === 'string')
-			el = doc.querySelectorAll(el);
+			el = doc.querySelector(el);
 
 		var pointerInfo = {
+				queued: false,
 				1: {
 					dragging: false
 				}
@@ -46,77 +50,80 @@
 
 		if (o.upOnLeave)
 		{
-			mouseUpEvents = mouseUpEvents.concat(mouseLeaveEvents);
-			touchUpEvents = touchUpEvents.concat(touchLeaveEvents);
-			pointerUpEvents = pointerUpEvents.concat(pointerLeaveEvents);
+			mouseUpEvent.push(mouseLeaveEvent);
+			touchUpEvent.push(touchLeaveEvent);
+			pointerUpEvent.push(pointerLeaveEvent);
 		}
 		if (o.hasMouse)
 		{
-			downEvent = mouseDownEvents;
-			moveEvent = mouseMoveEvents;
-			upEvent = mouseUpEvents;
+			downEvent.push(mouseDownEvent);
+			moveEvent.push(mouseMoveEvent);
+			upEvent = upEvent.concat(mouseUpEvent);
 		}
 		if (o.hasTouch)
 		{
-			downEvent = downEvent.concat(touchDownEvents);
-			moveEvent = moveEvent.concat(touchMoveEvents);
-			upEvent = upEvent.concat(touchUpEvents);
+			downEvent.push(touchDownEvent);
+			moveEvent.push(touchMoveEvent);
+			upEvent = upEvent.concat(touchUpEvent);
 		}
 		if (o.hasPointer)
 		{
-			downEvent = downEvent.concat(pointerDownEvents);
-			moveEvent = moveEvent.concat(pointerMoveEvents);
-			upEvent = upEvent.concat(pointerUpEvents);
+			downEvent.push(pointerDownEvent);
+			moveEvent.push(pointerMoveEvent);
+			upEvent = upEvent.concat(pointerUpEvent);
 		}
 
 		function pointerDown(evt)
 		{
-			evt.preventDefault();
-			if (evt.type === 'mousemove')
+			//evt.preventDefault();
+
+			var id = getPointerId(evt);
+
+			if (touchEvents.indexOf(evt.type) !== -1)
 			{
-				evt.pointerId = 1;
-			}
-			else if (evt.type === 'touchmove')
-			{
-				var touch = evt.changedTouches[0];
-				evt.pointerId = ( touch.identify || touch.identifier ) + 2;
-				evt.clientX = touch.clientX;
-				evt.clientY = touch.clientY;
+				evt.clientX = evt.changedTouches[0].clientX;
+				evt.clientY = evt.changedTouches[0].clientY;
 			}
 
-			pointerInfo[evt.pointerId] = {
+			pointerInfo[id] = {
 				startX: evt.clientX,
 				startY: evt.clientY,
 				dragging: true
 			};
 
-			o.downCallback(evt);
+			o.downCallback(evt, pointerInfo[id]);
 
 			return false;
 		}
 
+		function pointerMoveCallback()
+		{
+			o.moveCallback(pointerInfo.queued, pointerInfo[pointerInfo.queued.pointerId]);
+			pointerInfo.queued = false;
+		}
+
 		function pointerMove(evt)
 		{
-			if (evt.type === 'mousemove')
+			var id = evt.pointerId = getPointerId(evt);
+
+			if (touchEvents.indexOf(evt.type) !== -1)
 			{
-				evt.pointerId = 1;
-			}
-			else if (evt.type === 'touchmove')
-			{
-				var touch = evt.changedTouches[0];
-				evt.pointerId = ( touch.identify || touch.identifier ) + 2;
-				evt.clientX = touch.clientX;
-				evt.clientY = touch.clientY;
+				evt.clientX = evt.changedTouches[0].clientX;
+				evt.clientY = evt.changedTouches[0].clientY;
 			}
 
-			if (pointerInfo[evt.pointerId].dragging)
+			if (pointerInfo[id].dragging)
 			{
 				evt.preventDefault();
 
-				pointerInfo[evt.pointerId].deltaX = pointerInfo[evt.pointerId].startX - evt.clientX;
-				pointerInfo[evt.pointerId].deltaY = pointerInfo[evt.pointerId].startY - evt.clientY;
+				pointerInfo[id].deltaX = pointerInfo[id].startX - evt.clientX;
+				pointerInfo[id].deltaY = pointerInfo[id].startY - evt.clientY;
 
-				requestAnimationFrame(o.moveCallback);
+				if (!pointerInfo.queued)
+				{
+					pointerInfo.queued = evt;
+					raf = requestAnimationFrame(pointerMoveCallback);
+				}
 
 				return false;
 			}
@@ -124,19 +131,29 @@
 
 		function pointerUp(evt)
 		{
+			window.cancelAnimationFrame(raf);
+			pointerInfo.queued = false;
+
+			var id = getPointerId(evt);
+
+			if (pointerInfo[id].dragging)
+				o.upCallback(evt, pointerInfo[id]);
+
+			pointerInfo[id].dragging = false;
+		}
+
+		function getPointerId(evt)
+		{
 			if (mouseEvents.indexOf(evt.type) !== -1)
-			{
-				evt.pointerId = 1;
-			}
-			else if (touchEvents.indexOf(evt.type) !== -1)
-			{
-				var touch = evt.changedTouches[0];
-				evt.pointerId = (touch.identify || touch.identifier)  + 2;
-			}
+				return 1;
 
-			pointerInfo[evt.pointerId].dragging = false;
+			if (touchEvents.indexOf(evt.type) !== -1)
+				return (evt.changedTouches[0].identify || evt.changedTouches[0].identifier)  + 2;
 
-			o.upCallback(evt);
+			if (pointerEvents.indexOf(evt.type) !== -1)
+				return evt.pointerId;
+
+			return 1;
 		}
 
 		self.init = function()
@@ -148,10 +165,12 @@
 			{
 				el.addEventListener(event, pointerDown, false);
 			});
+
 			each(moveEvent, function(event)
 			{
 				el.addEventListener(event, pointerMove, false);
 			});
+
 			each(upEvent, function(event)
 			{
 				el.addEventListener(event, pointerUp, false);
@@ -221,4 +240,4 @@
 		upCallback: function(e) { }
 	};
 
-}(window, document));
+})(window, document);
